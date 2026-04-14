@@ -1,0 +1,10 @@
+POSTGRES_HOST: localhost
+POSTGRES_PORT: 5432
+POSTGRES_USER: postgres
+POSTGRES_PASSWORD: postgres
+POSTGRES_DB: user_profile_db
+POSTGRES_SSLMODE: disable
+RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+GRPC_PORT: 50052
+HTTP_PORT: 8080
+SERVICE_NAME: user-profile-service
