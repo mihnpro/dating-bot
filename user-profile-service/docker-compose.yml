@@ -1,0 +1,133 @@
+services:
+  user-profile-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: user-profile-service
+    ports:
+      - "50051:50051"
+      - "8080:8080"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: user_profile_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      GRPC_PORT: 50051
+      HTTP_PORT: 8080
+      SERVICE_NAME: user-profile-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    labels:
+      com.docker.compose.project: user-profile-service
+      com.docker.compose.service: user-profile-service
+    networks:
+      - dating-bot-net
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: user-profile-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: user_profile_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./deploy/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dating-bot-net
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: user-profile-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - dating-bot-net
+
+  # --- Metrics ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: user-profile-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    networks:
+      - dating-bot-net
+
+  # --- Logs ---
+  loki:
+    image: grafana/loki:latest
+    container_name: user-profile-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./deploy/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - dating-bot-net
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: user-profile-promtail
+    volumes:
+      - ./deploy/loki/promtail-config.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: "on-failure"
+    networks:
+      - dating-bot-net
+
+  # --- Dashboard ---
+  grafana:
+    image: grafana/grafana:latest
+    container_name: user-profile-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - dating-bot-net
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+
+networks:
+  dating-bot-net:
+    driver: bridge
+    name: dating-bot-net
