@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0
 	github.com/lib/pq v1.10.9
-	github.com/mihnpro/DatingBotProtos v0.0.0-20260413094400-1637bc5742e8
+	github.com/mihnpro/DatingBotProtos v0.0.0-20260415082539-d44a46fd5043
 	github.com/prometheus/client_golang v1.23.2
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/sirupsen/logrus v1.9.3
