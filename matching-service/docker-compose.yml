@@ -1,0 +1,57 @@
+services:
+  matching-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: matching-service
+    ports:
+      - "50052:50052"
+      - "8081:8081"
+    environment:
+      POSTGRES_HOST: matching-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: matching_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_URL: amqp://guest:guest@dating-bot-rabbitmq:5672/
+      GRPC_PORT: 50052
+      HTTP_PORT: 8081
+      SERVICE_NAME: matching-service
+      USER_PROFILE_SERVICE_ADDR: user-profile-service:50051
+    depends_on:
+      matching-postgres:
+        condition: service_healthy
+    labels:
+      com.docker.compose.project: dating-bot
+      com.docker.compose.service: matching-service
+    networks:
+      - dating-bot-net
+
+  matching-postgres:
+    image: postgres:16-alpine
+    container_name: matching-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: matching_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - matching-pg-data:/var/lib/postgresql/data
+      - ./deploy/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dating-bot-net
+
+volumes:
+  matching-pg-data:
+
+networks:
+  dating-bot-net:
+    external: true
+    name: dating-bot-net
