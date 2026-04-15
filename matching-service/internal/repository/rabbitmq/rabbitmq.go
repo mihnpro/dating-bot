@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/dating-bot/matching-service/internal/domain/event"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Publisher struct {

@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	_ "github.com/lib/pq"
 
 	userprofilev1 "github.com/mihnpro/DatingBotProtos/gen/go/user-profile/v1"
 

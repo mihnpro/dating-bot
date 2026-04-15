@@ -3,15 +3,16 @@ package grpc
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	userprofilev1 "github.com/mihnpro/DatingBotProtos/gen/go/user-profile/v1"
 	"github.com/dating-bot/user-profile-service/internal/domain/entity"
 	"github.com/dating-bot/user-profile-service/internal/service"
+	userprofilev1 "github.com/mihnpro/DatingBotProtos/gen/go/user-profile/v1"
 )
 
 type Server struct {
@@ -43,7 +44,7 @@ func (s *Server) RegisterUser(ctx context.Context, req *userprofilev1.RegisterUs
 func (s *Server) GetUser(ctx context.Context, req *userprofilev1.GetUserRequest) (*userprofilev1.GetUserResponse, error) {
 	user, err := s.svc.GetUser(ctx, req.Id)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		return nil, status.Errorf(codes.Internal, "get user: %v", err)
@@ -54,7 +55,7 @@ func (s *Server) GetUser(ctx context.Context, req *userprofilev1.GetUserRequest)
 func (s *Server) GetUserByTelegramID(ctx context.Context, req *userprofilev1.GetUserByTelegramIDRequest) (*userprofilev1.GetUserResponse, error) {
 	user, err := s.svc.GetUserByTelegramID(ctx, req.TelegramId)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		return nil, status.Errorf(codes.Internal, "get user by telegram id: %v", err)
@@ -81,7 +82,7 @@ func (s *Server) UpdateUser(ctx context.Context, req *userprofilev1.UpdateUserRe
 
 	user, err := s.svc.UpdateUser(ctx, req.Id, username, firstName, lastName, userStatus)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		return nil, status.Errorf(codes.Internal, "update user: %v", err)
@@ -91,7 +92,7 @@ func (s *Server) UpdateUser(ctx context.Context, req *userprofilev1.UpdateUserRe
 
 func (s *Server) DeleteUser(ctx context.Context, req *userprofilev1.DeleteUserRequest) (*emptypb.Empty, error) {
 	if err := s.svc.DeleteUser(ctx, req.Id); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "user not found")
 		}
 		return nil, status.Errorf(codes.Internal, "delete user: %v", err)
@@ -144,7 +145,7 @@ func (s *Server) CreateProfile(ctx context.Context, req *userprofilev1.CreatePro
 func (s *Server) GetProfile(ctx context.Context, req *userprofilev1.GetProfileRequest) (*userprofilev1.GetProfileResponse, error) {
 	profile, err := s.svc.GetProfile(ctx, req.UserId)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "profile not found")
 		}
 		return nil, status.Errorf(codes.Internal, "get profile: %v", err)
@@ -169,7 +170,7 @@ func (s *Server) UpdateProfile(ctx context.Context, req *userprofilev1.UpdatePro
 		req.PhotosCount,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "profile not found")
 		}
 		return nil, status.Errorf(codes.Internal, "update profile: %v", err)
@@ -179,7 +180,7 @@ func (s *Server) UpdateProfile(ctx context.Context, req *userprofilev1.UpdatePro
 
 func (s *Server) DeleteProfile(ctx context.Context, req *userprofilev1.DeleteProfileRequest) (*emptypb.Empty, error) {
 	if err := s.svc.DeleteProfile(ctx, req.UserId); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "profile not found")
 		}
 		return nil, status.Errorf(codes.Internal, "delete profile: %v", err)
