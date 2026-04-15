@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: user-profile-service
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - user-profile-service:8080
+        labels:
+          service: user-profile-service
+
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090

@@ -1,0 +1,5 @@
+bin/
+.env
+*.swp
+*.swo
+.DS_Store
