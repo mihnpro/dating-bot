@@ -8,7 +8,7 @@ services:
       - "50051:50051"
       - "8080:8080"
     environment:
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: user-profile-postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -19,17 +19,17 @@ services:
       HTTP_PORT: 8080
       SERVICE_NAME: user-profile-service
     depends_on:
-      postgres:
+      user-profile-postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_started
     labels:
-      com.docker.compose.project: user-profile-service
+      com.docker.compose.project: dating-bot
       com.docker.compose.service: user-profile-service
     networks:
       - dating-bot-net
 
-  postgres:
+  user-profile-postgres:
     image: postgres:16-alpine
     container_name: user-profile-postgres
     environment:
@@ -39,7 +39,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - user-profile-pg-data:/var/lib/postgresql/data
       - ./deploy/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -51,7 +51,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: user-profile-rabbitmq
+    container_name: dating-bot-rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -61,10 +61,10 @@ services:
     networks:
       - dating-bot-net
 
-  # --- Metrics ---
+  # --- Shared Observability ---
   prometheus:
     image: prom/prometheus:latest
-    container_name: user-profile-prometheus
+    container_name: dating-bot-prometheus
     ports:
       - "9090:9090"
     volumes:
@@ -76,10 +76,9 @@ services:
     networks:
       - dating-bot-net
 
-  # --- Logs ---
   loki:
     image: grafana/loki:latest
-    container_name: user-profile-loki
+    container_name: dating-bot-loki
     ports:
       - "3100:3100"
     volumes:
@@ -91,7 +90,7 @@ services:
 
   promtail:
     image: grafana/promtail:latest
-    container_name: user-profile-promtail
+    container_name: dating-bot-promtail
     volumes:
       - ./deploy/loki/promtail-config.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
@@ -102,16 +101,14 @@ services:
     networks:
       - dating-bot-net
 
-  # --- Dashboard ---
   grafana:
     image: grafana/grafana:latest
-    container_name: user-profile-grafana
+    container_name: dating-bot-grafana
     ports:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning
       - grafana-data:/var/lib/grafana
@@ -122,7 +119,7 @@ services:
       - dating-bot-net
 
 volumes:
-  postgres-data:
+  user-profile-pg-data:
   prometheus-data:
   loki-data:
   grafana-data:
