@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"github.com/dating-bot/user-profile-service/internal/domain/entity"
 	"github.com/dating-bot/user-profile-service/internal/domain/event"
@@ -27,6 +29,15 @@ func NewUserService(
 }
 
 func (s *UserService) RegisterUser(ctx context.Context, telegramID int64, username, firstName, lastName string, referralBy *int64) (*entity.User, error) {
+	// Idempotent: return the existing user if the telegram_id is already registered.
+	existing, err := s.userRepo.GetByTelegramID(ctx, telegramID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+
 	user := entity.NewUser(telegramID, username, firstName, lastName, referralBy)
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, err
