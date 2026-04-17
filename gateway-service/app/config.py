@@ -1,0 +1,18 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    bot_token: str
+    user_profile_service_url: str = "http://user-profile-service:8080"
+    matching_service_url: str = "http://matching-service:8081"
+    recommendation_service_url: str = "http://recommendation-service:8082"
+    service_name: str = "gateway-service"
+
+
+settings = Settings()
