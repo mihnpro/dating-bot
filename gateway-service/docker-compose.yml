@@ -1,0 +1,21 @@
+services:
+  gateway-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    env_file:
+      - .env
+    environment:
+      USER_PROFILE_SERVICE_URL: http://user-profile-service:8080
+      MATCHING_SERVICE_URL: http://matching-service:8081
+      RECOMMENDATION_SERVICE_URL: http://recommendation-service:8082
+      SERVICE_NAME: gateway-service
+    networks:
+      - dating-bot-net
+    restart: unless-stopped
+
+networks:
+  dating-bot-net:
+    external: true
+    name: dating-bot-net
