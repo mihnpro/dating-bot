@@ -1,0 +1,32 @@
+POSTGRES_HOST: localhost
+POSTGRES_PORT: 5432
+POSTGRES_USER: postgres
+POSTGRES_PASSWORD: postgres
+POSTGRES_DB: rating_db
+POSTGRES_SSLMODE: disable
+
+RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+
+REDIS_ADDR: localhost:6379
+REDIS_PASSWORD: ""
+REDIS_DB: 0
+
+GRPC_PORT: 50053
+HTTP_PORT: 8082
+
+SERVICE_NAME: recommendation-service
+
+USER_PROFILE_SERVICE_ADDR: user-profile-service:50051
+MATCHING_SERVICE_ADDR: matching-service:50052
+
+# Worker pool size for background rating recalculation
+WORKER_COUNT: 8
+
+# How often (minutes) the full recalculation ticker fires
+RECALC_INTERVAL_MINUTES: 30
+
+# Redis TTL (seconds) for a user's recommendation queue
+RECOMMENDATION_TTL_SECONDS: 3600
+
+# How many candidates to load per recommendation batch
+RECOMMENDATION_BATCH_SIZE: 50
