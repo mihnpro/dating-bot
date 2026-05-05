@@ -1,12 +1,14 @@
+import asyncio
 import logging
 from typing import Optional
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InputMediaPhoto, Message
 
 from ...application.matching_use_cases import MatchingUseCases
+from ...application.media_use_cases import MediaUseCases
 from ...application.user_use_cases import UserUseCases
 from ...infrastructure.recommendation_client import RecommendationClient
 from ..keyboards.inline import matches_keyboard, profile_action_keyboard
@@ -50,10 +52,49 @@ def _format_card(profile: dict, name: str = "") -> str:
     )
 
 
+async def _get_all_photo_bytes(
+    user_id: int, media_use_cases: MediaUseCases
+) -> list[bytes]:
+    try:
+        photos = await media_use_cases.get_user_photos(user_id)
+        results = await asyncio.gather(
+            *(media_use_cases.get_photo_bytes(p.url) for p in photos),
+            return_exceptions=True,
+        )
+        return [r for r in results if isinstance(r, bytes) and r]
+    except Exception:
+        return []
+
+
+async def _send_card_with_photo(
+    message: Message,
+    text: str,
+    all_photo_bytes: list[bytes],
+    reply_markup=None,
+) -> None:
+    if len(all_photo_bytes) == 1:
+        await message.answer_photo(
+            photo=BufferedInputFile(all_photo_bytes[0], filename="photo.jpg"),
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+    elif len(all_photo_bytes) > 1:
+        media = [
+            InputMediaPhoto(media=BufferedInputFile(data, filename=f"photo_{i}.jpg"))
+            for i, data in enumerate(all_photo_bytes)
+        ]
+        await message.answer_media_group(media=media)
+        await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
+    else:
+        await message.answer(text, reply_markup=reply_markup)
+
+
 async def _show_next_profile(
     message: Message,
     state: FSMContext,
     user_use_cases: UserUseCases,
+    media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
     current_user_id: int,
 ) -> None:
@@ -81,14 +122,16 @@ async def _show_next_profile(
         )
         return
 
-    # Fetch candidate's name from user-profile-service for a personal touch.
     other_user = await user_use_cases.get_user(candidate_user_id)
     name = other_user.first_name if other_user else "User"
 
     card_text = _format_card(profile_data, name=name)
+    photo_bytes = await _get_all_photo_bytes(candidate_user_id, media_use_cases)
 
-    await message.answer(
+    await _send_card_with_photo(
+        message,
         card_text,
+        photo_bytes,
         reply_markup=profile_action_keyboard(candidate_user_id),
     )
 
@@ -105,6 +148,7 @@ async def browse_handler(
     state: FSMContext,
     user_use_cases: UserUseCases,
     matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
 ) -> None:
     user = await _get_current_user(message, user_use_cases)
@@ -125,6 +169,7 @@ async def browse_handler(
         message=message,
         state=state,
         user_use_cases=user_use_cases,
+        media_use_cases=media_use_cases,
         recommendation_client=recommendation_client,
         current_user_id=user.id,
     )
@@ -141,6 +186,7 @@ async def like_callback(
     state: FSMContext,
     user_use_cases: UserUseCases,
     matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
 ) -> None:
     await callback.answer()
@@ -182,6 +228,7 @@ async def like_callback(
         message=callback.message,
         state=state,
         user_use_cases=user_use_cases,
+        media_use_cases=media_use_cases,
         recommendation_client=recommendation_client,
         current_user_id=user.id,
     )
@@ -198,6 +245,7 @@ async def pass_callback(
     state: FSMContext,
     user_use_cases: UserUseCases,
     matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
 ) -> None:
     await callback.answer()
@@ -226,6 +274,7 @@ async def pass_callback(
         message=callback.message,
         state=state,
         user_use_cases=user_use_cases,
+        media_use_cases=media_use_cases,
         recommendation_client=recommendation_client,
         current_user_id=user.id,
     )
@@ -282,6 +331,7 @@ async def match_info_callback(
     callback: CallbackQuery,
     user_use_cases: UserUseCases,
     matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
 ) -> None:
     await callback.answer()
@@ -317,8 +367,11 @@ async def match_info_callback(
 
     if other_user and other_profile:
         card = other_profile.format_card(name=other_user.first_name)
-        await callback.message.answer(
-            f"💞 <b>Your Match</b>\n\n{card}\n\n💬 <i>Chat feature coming soon!</i>"
+        photo_bytes = await _get_all_photo_bytes(other_id, media_use_cases)
+        await _send_card_with_photo(
+            callback.message,
+            f"💞 <b>Your Match</b>\n\n{card}\n\n💬 <i>Chat feature coming soon!</i>",
+            photo_bytes,
         )
     else:
         await callback.message.answer(

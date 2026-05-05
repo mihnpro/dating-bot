@@ -11,6 +11,7 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text="🔍 Browse"),
             ],
             [
+                KeyboardButton(text="📷 My Photos"),
                 KeyboardButton(text="💞 My Matches"),
             ],
         ],
