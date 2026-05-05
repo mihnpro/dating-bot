@@ -30,9 +30,12 @@ class Profile:
     def format_card(self, name: str = "") -> str:
         interests_str = ", ".join(self.interests) if self.interests else "—"
         gender_emoji = "👨" if self.gender.lower() == "male" else "👩"
+        photos_str = f"📷 {self.photos_count} photo{'s' if self.photos_count != 1 else ''}" if self.photos_count else "📷 No photos yet"
+        fullness = int(self.fullness_percent * 100)
         return (
             f"{gender_emoji} <b>{name or 'User'}</b>\n"
             f"🎂 Age: <b>{self.age}</b>\n"
             f"🏙 City: <b>{self.city}</b>\n"
-            f"🎯 Interests: {interests_str}"
+            f"🎯 Interests: {interests_str}\n"
+            f"{photos_str}  •  Profile: <b>{fullness}%</b> complete"
         )
