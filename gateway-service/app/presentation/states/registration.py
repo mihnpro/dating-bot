@@ -13,3 +13,7 @@ class EditProfile(StatesGroup):
     age = State()
     city = State()
     interests = State()
+
+
+class UploadPhoto(StatesGroup):
+    waiting_for_photo = State()
