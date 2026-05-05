@@ -81,6 +81,25 @@ func (r *profileRepository) Delete(ctx context.Context, userID int64) error {
 	return err
 }
 
+func (r *profileRepository) IncrementPhotosCount(ctx context.Context, userID int64) (*entity.Profile, error) {
+	query := `
+		UPDATE profiles
+		SET photos_count = photos_count + 1, updated_at = NOW()
+		WHERE user_id = $1
+		RETURNING id, user_id, age, gender, city, interests, photos_count, fullness_percent, updated_at
+	`
+	p := &entity.Profile{}
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&p.ID, &p.UserID, &p.Age, &p.Gender, &p.City,
+		pq.Array(&p.Interests), &p.PhotosCount, &p.FullnessPercent, &p.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("increment photos_count: %w", err)
+	}
+	p.Gender = entity.Gender(p.Gender)
+	return p, nil
+}
+
 func (r *profileRepository) List(ctx context.Context, page, pageSize int32, gender *entity.Gender, city *string, minAge, maxAge *int32) ([]*entity.Profile, int32, error) {
 	conditions := []string{}
 	args := []any{}
