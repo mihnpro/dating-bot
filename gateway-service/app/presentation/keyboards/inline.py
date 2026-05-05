@@ -12,6 +12,20 @@ def profile_action_keyboard(to_user_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def photos_keyboard(photos: list) -> InlineKeyboardMarkup:
+    """Inline keyboard for managing a user's photos. Each row: view + delete."""
+    builder = InlineKeyboardBuilder()
+    for idx, photo in enumerate(photos, start=1):
+        builder.row(
+            InlineKeyboardButton(text=f"📷 Photo {idx}", callback_data=f"photo_view:{photo.id}"),
+            InlineKeyboardButton(text="🗑 Delete", callback_data=f"photo_del:{photo.id}"),
+        )
+    builder.row(
+        InlineKeyboardButton(text="➕ Add photo", callback_data="photo_add")
+    )
+    return builder.as_markup()
+
+
 def matches_keyboard(matches: list[tuple[int, str]]) -> InlineKeyboardMarkup:
     """
     Build an inline keyboard listing all matches.
