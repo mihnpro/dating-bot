@@ -1,0 +1,21 @@
+GRPC_PORT: 50054
+HTTP_PORT: 8083
+
+POSTGRES_HOST: localhost
+POSTGRES_PORT: 5432
+POSTGRES_USER: postgres
+POSTGRES_PASSWORD: postgres
+POSTGRES_DB: media_db
+POSTGRES_SSLMODE: disable
+
+RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+RABBITMQ_EXCHANGE: dating.events
+
+MINIO_ENDPOINT: localhost:9000
+MINIO_ACCESS_KEY: minioadmin
+MINIO_SECRET_KEY: minioadmin
+MINIO_BUCKET: photos
+MINIO_USE_SSL: false
+MINIO_PUBLIC_HOST: http://localhost:9000
+
+SERVICE_NAME: media-service
