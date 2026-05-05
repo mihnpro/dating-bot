@@ -8,6 +8,7 @@ from .application.media_use_cases import MediaUseCases
 from .application.user_use_cases import UserUseCases
 from .bot import bot, dp
 from .config import settings
+from .infrastructure.chat_client import ChatClient
 from .infrastructure.matching_client import MatchingClient
 from .infrastructure.media_client import MediaClient
 from .infrastructure.recommendation_client import RecommendationClient
@@ -48,11 +49,13 @@ async def main() -> None:
     matching_client = MatchingClient(settings.matching_service_url)
     recommendation_client = RecommendationClient(settings.recommendation_service_url)
     media_client = MediaClient(settings.media_service_url, settings.minio_internal_url)
+    chat_client = ChatClient(settings.chat_service_url)
 
     await user_profile_client.start()
     await matching_client.start()
     await recommendation_client.start()
     await media_client.start()
+    await chat_client.start()
 
     # ------------------------------------------------------------------ #
     # Application — use-case layer                                        #
@@ -69,6 +72,8 @@ async def main() -> None:
     dp["matching_use_cases"] = matching_use_cases
     dp["recommendation_client"] = recommendation_client
     dp["media_use_cases"] = media_use_cases
+    dp["chat_client"] = chat_client
+    dp["chat_frontend_url"] = settings.chat_frontend_url
 
     # ------------------------------------------------------------------ #
     # Routers                                                             #
@@ -98,6 +103,7 @@ async def main() -> None:
         await matching_client.stop()
         await recommendation_client.stop()
         await media_client.stop()
+        await chat_client.stop()
         await bot.session.close()
         logger.info("Gateway Service stopped.")
 
