@@ -145,6 +145,22 @@ func (s *Subscriber) Consume(queue, exchange string, handler func(evt *event.Dom
 	return nil
 }
 
+// SubscribeMediaUploaded subscribes to the media.uploaded event and calls handler
+// with the parsed user_id. All transport concerns (queue declaration, filtering
+// by event name, payload unmarshaling) are handled here, not in the caller.
+func (s *Subscriber) SubscribeMediaUploaded(exchange string, handler func(ctx context.Context, userID int64) error) error {
+	return s.Consume("user-profile-service.media", exchange, func(evt *event.DomainEvent) error {
+		if evt.EventName != "media.uploaded" {
+			return nil
+		}
+		var payload event.MediaUploadedData
+		if err := evt.UnmarshalData(&payload); err != nil {
+			return fmt.Errorf("unmarshal media.uploaded payload: %w", err)
+		}
+		return handler(context.Background(), payload.UserID)
+	})
+}
+
 func (s *Subscriber) Close() error {
 	if err := s.channel.Close(); err != nil {
 		return err

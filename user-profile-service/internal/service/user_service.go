@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/dating-bot/user-profile-service/internal/domain/entity"
 	"github.com/dating-bot/user-profile-service/internal/domain/event"
@@ -159,6 +160,28 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID int64, age *int3
 
 func (s *UserService) DeleteProfile(ctx context.Context, userID int64) error {
 	return s.profileRepo.Delete(ctx, userID)
+}
+
+// OnMediaUploaded handles the media.uploaded event from Media Service.
+// It atomically increments photos_count, recalculates fullness, and triggers
+// a profile.updated event so Recommendation Service updates the primary rating.
+func (s *UserService) OnMediaUploaded(ctx context.Context, userID int64) error {
+	profile, err := s.profileRepo.IncrementPhotosCount(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("increment photos_count for user %d: %w", userID, err)
+	}
+
+	profile.CalculateFullness()
+	if err := s.profileRepo.Update(ctx, profile); err != nil {
+		return fmt.Errorf("update fullness after photo upload for user %d: %w", userID, err)
+	}
+
+	evt, _ := event.NewProfileUpdatedEvent(profile)
+	if evt != nil {
+		_ = s.publisher.Publish(ctx, "profile.updated", evt)
+	}
+
+	return nil
 }
 
 func (s *UserService) ListProfiles(ctx context.Context, page, pageSize int32, gender *entity.Gender, city *string, minAge, maxAge *int32) ([]*entity.Profile, int32, error) {

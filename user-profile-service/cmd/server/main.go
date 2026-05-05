@@ -20,9 +20,9 @@ import (
 	userprofilev1 "github.com/mihnpro/DatingBotProtos/gen/go/user-profile/v1"
 
 	"github.com/dating-bot/user-profile-service/internal/config"
-	"github.com/dating-bot/user-profile-service/internal/service"
 	postgresrepo "github.com/dating-bot/user-profile-service/internal/repository/postgres"
 	"github.com/dating-bot/user-profile-service/internal/repository/rabbitmq"
+	"github.com/dating-bot/user-profile-service/internal/service"
 	grpcserver "github.com/dating-bot/user-profile-service/internal/transport/grpc"
 	"github.com/dating-bot/user-profile-service/internal/transport/metrics"
 	"github.com/dating-bot/user-profile-service/internal/transport/middleware"
@@ -58,12 +58,23 @@ func main() {
 	}
 	defer pub.Close()
 
+	// --- RabbitMQ Subscriber ---
+	sub, err := rabbitmq.NewSubscriber(cfg.RabbitMQ.URL)
+	if err != nil {
+		logrus.WithError(err).Fatal("Failed to create RabbitMQ subscriber")
+	}
+	defer sub.Close()
+
 	// --- Repositories ---
 	userRepo := postgresrepo.NewUserRepository(db)
 	profileRepo := postgresrepo.NewProfileRepository(db)
 
 	// --- Domain Service ---
 	svc := service.NewUserService(userRepo, profileRepo, pub)
+
+	if err := sub.SubscribeMediaUploaded("dating.events", svc.OnMediaUploaded); err != nil {
+		logrus.WithError(err).Fatal("Failed to subscribe to media.uploaded")
+	}
 
 	// --- gRPC Server ---
 	grpcSrv := grpcserver.NewServer(svc)
