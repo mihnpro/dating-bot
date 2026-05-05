@@ -29,6 +29,10 @@ func (e *DomainEvent) Marshal() ([]byte, error) {
 	return json.Marshal(e)
 }
 
+func (e *DomainEvent) UnmarshalData(v any) error {
+	return json.Unmarshal(e.Data, v)
+}
+
 func UnmarshalDomainEvent(data []byte) (*DomainEvent, error) {
 	var e DomainEvent
 	if err := json.Unmarshal(data, &e); err != nil {
@@ -51,6 +55,12 @@ type UserUpdatedData struct {
 
 type ProfileUpdatedData struct {
 	UserID int64 `json:"user_id"`
+}
+
+// MediaUploadedData is the payload of the media.uploaded event published by Media Service.
+type MediaUploadedData struct {
+	UserID  int64 `json:"user_id"`
+	MediaID int64 `json:"media_id"`
 }
 
 // --- Factory helpers ---
