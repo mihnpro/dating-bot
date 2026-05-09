@@ -55,9 +55,13 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+      - "15692:15692"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_ENABLED_PLUGINS_FILE: /etc/rabbitmq/enabled_plugins
+    volumes:
+      - ./deploy/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins
     networks:
       - dating-bot-net
 
@@ -100,6 +104,22 @@ services:
     restart: "on-failure"
     networks:
       - dating-bot-net
+  
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: dating-bot_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - 5050:80
+    depends_on:
+      - user-profile-postgres
+    networks:
+      - dating-bot-net
+    restart: unless-stopped
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
 
   grafana:
     image: grafana/grafana:latest
@@ -123,6 +143,7 @@ volumes:
   prometheus-data:
   loki-data:
   grafana-data:
+  pgadmin-data:
 
 networks:
   dating-bot-net:
