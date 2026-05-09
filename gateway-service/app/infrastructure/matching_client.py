@@ -65,6 +65,13 @@ class MatchingClient(BaseClient):
             params["type"] = type_
         return await self._get(f"/api/v1/matching/history/{user_id}", params=params)
 
+    async def get_who_liked_me(self, user_id: int, page: int = 1, page_size: int = 50) -> dict:
+        """Return IDs of users who liked me but I haven't responded to yet."""
+        return await self._get(
+            f"/api/v1/matching/who-liked-me/{user_id}",
+            params={"page": page, "pageSize": page_size},
+        )
+
     async def mark_conversation_started(self, match_id: int) -> None:
         """Mark a match as having started a conversation."""
         await self._post(f"/api/v1/matches/{match_id}/conversation-started")
