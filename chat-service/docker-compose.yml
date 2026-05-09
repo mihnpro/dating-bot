@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  chat-postgres:
+    image: postgres:16-alpine
+    container_name: chat-postgres
+    environment:
+      POSTGRES_DB: chat_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5437:5432"
+    volumes:
+      - chat-postgres-data:/var/lib/postgresql/data
+      - ./deploy/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+    networks:
+      - dating-bot-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  chat-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chat-service
+    environment:
+      POSTGRES_HOST: chat-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DBNAME: chat_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      HTTP_PORT: 8083
+      SERVICE_NAME: chat-service
+      GRPC_PORT: 50054
+      CHAT_SECRET_KEY: ${CHAT_SECRET_KEY:-supersecret-change-in-prod}
+      CHAT_TOKEN_TTL_SEC: 3600
+      CHAT_FRONTEND_URL: ${CHAT_FRONTEND_URL:-http://localhost:3001}
+      CLIENTS_USER_PROFILE_SERVICE_ADDR: user-profile-service:50051
+    ports:
+      - "8084:8083"
+      - "50055:50054"
+    depends_on:
+      chat-postgres:
+        condition: service_healthy
+    networks:
+      - dating-bot-net
+    restart: unless-stopped
+
+networks:
+  dating-bot-net:
+    external: true
+
+volumes:
+  chat-postgres-data:

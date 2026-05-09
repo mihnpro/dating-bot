@@ -10,13 +10,35 @@ from aiogram.types import BufferedInputFile, CallbackQuery, InputMediaPhoto, Mes
 from ...application.matching_use_cases import MatchingUseCases
 from ...application.media_use_cases import MediaUseCases
 from ...application.user_use_cases import UserUseCases
+from ...infrastructure.chat_client import ChatClient
 from ...infrastructure.recommendation_client import RecommendationClient
-from ..keyboards.inline import matches_keyboard, profile_action_keyboard
+from ..keyboards.inline import (
+    match_announcement_keyboard,
+    match_chat_keyboard,
+    matches_keyboard,
+    profile_action_keyboard,
+)
 from ..keyboards.reply import main_menu_keyboard
 
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+async def _build_chat_url(
+    chat_client: ChatClient,
+    frontend_url: str,
+    user_id: int,
+    match_id: int,
+) -> str | None:
+    """Generate a signed chat URL for the given user and match. Returns None on error."""
+    try:
+        data = await chat_client.get_token(user_id)
+        token = data.get("token", "")
+        return f"{frontend_url}/?user_id={user_id}&match_id={match_id}&token={token}"
+    except Exception as exc:
+        logger.warning("Failed to generate chat token for user=%s: %s", user_id, exc)
+        return None
 
 
 # =========================================================================== #
@@ -188,6 +210,8 @@ async def like_callback(
     matching_use_cases: MatchingUseCases,
     media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
+    chat_client: ChatClient,
+    chat_frontend_url: str,
 ) -> None:
     await callback.answer()
 
@@ -213,13 +237,19 @@ async def like_callback(
         await callback.message.answer("❌ Something went wrong. Please try again.")
         return
 
-    if is_match:
+    if is_match and match:
         other_user = await user_use_cases.get_user(to_user_id)
         other_name = other_user.first_name if other_user else "someone"
+        other_username = other_user.username if other_user else None
+
+        chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match.id)
+
         await callback.message.answer(
             f"🎉 <b>It's a Match!</b>\n\n"
-            f"You and <b>{other_name}</b> liked each other!\n"
-            f"Check your matches with /matches 💞"
+            f"You and <b>{other_name}</b> liked each other!\n\n"
+            f"Start a conversation right now 👇",
+            parse_mode="HTML",
+            reply_markup=match_announcement_keyboard(chat_url, other_username) if chat_url else None,
         )
     else:
         await callback.message.answer("❤️ Liked!")
@@ -333,6 +363,8 @@ async def match_info_callback(
     matching_use_cases: MatchingUseCases,
     media_use_cases: MediaUseCases,
     recommendation_client: RecommendationClient,
+    chat_client: ChatClient,
+    chat_frontend_url: str,
 ) -> None:
     await callback.answer()
 
@@ -364,16 +396,22 @@ async def match_info_callback(
     match, other_user = matched_pair
     other_id = match.user2_id if match.user1_id == user.id else match.user1_id
     other_profile = await user_use_cases.get_profile(other_id)
+    other_username = other_user.username if other_user else None
+
+    chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match_id)
+    keyboard = match_chat_keyboard(match_id, chat_url, other_username) if chat_url else None
 
     if other_user and other_profile:
         card = other_profile.format_card(name=other_user.first_name)
         photo_bytes = await _get_all_photo_bytes(other_id, media_use_cases)
         await _send_card_with_photo(
             callback.message,
-            f"💞 <b>Your Match</b>\n\n{card}\n\n💬 <i>Chat feature coming soon!</i>",
+            f"💞 <b>Your Match</b>\n\n{card}",
             photo_bytes,
+            reply_markup=keyboard,
         )
     else:
         await callback.message.answer(
-            f"💞 Match #{match_id}\n\n💬 <i>Chat feature coming soon!</i>"
+            f"💞 Match #{match_id}",
+            reply_markup=keyboard,
         )
