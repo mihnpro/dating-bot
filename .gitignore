@@ -1,2 +1,4 @@
 contracts/
 .DS_Store
+**/.env
+recommendation-service/.DS_Store
