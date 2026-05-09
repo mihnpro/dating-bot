@@ -96,6 +96,48 @@ func (r *interactionRepository) GetByUserID(ctx context.Context, userID int64, p
 	return interactions, total, nil
 }
 
+func (r *interactionRepository) GetWhoLikedMe(ctx context.Context, toUserID int64, page, pageSize int32) ([]int64, int32, error) {
+	var total int32
+	countQuery := `
+		SELECT COUNT(*) FROM interactions i
+		WHERE i.to_user_id = $1 AND i.type = 'like'
+		  AND NOT EXISTS (
+		    SELECT 1 FROM interactions
+		    WHERE from_user_id = $1 AND to_user_id = i.from_user_id
+		  )
+	`
+	if err := r.db.QueryRowContext(ctx, countQuery, toUserID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	query := `
+		SELECT i.from_user_id FROM interactions i
+		WHERE i.to_user_id = $1 AND i.type = 'like'
+		  AND NOT EXISTS (
+		    SELECT 1 FROM interactions
+		    WHERE from_user_id = $1 AND to_user_id = i.from_user_id
+		  )
+		ORDER BY i.created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := r.db.QueryContext(ctx, query, toUserID, int(pageSize), int(offset))
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, 0, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, total, nil
+}
+
 func (r *interactionRepository) Delete(ctx context.Context, fromUserID, toUserID int64, t entity.InteractionType) error {
 	query := `DELETE FROM interactions WHERE from_user_id = $1 AND to_user_id = $2 AND type = $3`
 	_, err := r.db.ExecContext(ctx, query, fromUserID, toUserID, string(t))

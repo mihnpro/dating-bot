@@ -108,6 +108,10 @@ func (s *MatchingService) GetInteractionHistory(ctx context.Context, userID int6
 	return s.interactionRepo.GetByUserID(ctx, userID, page, pageSize, t)
 }
 
+func (s *MatchingService) GetWhoLikedMe(ctx context.Context, toUserID int64, page, pageSize int32) ([]int64, int32, error) {
+	return s.interactionRepo.GetWhoLikedMe(ctx, toUserID, page, pageSize)
+}
+
 func (s *MatchingService) MarkConversationStarted(ctx context.Context, matchID int64) error {
 	match, err := s.matchRepo.GetByID(ctx, matchID)
 	if err != nil {

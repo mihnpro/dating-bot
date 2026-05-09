@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -110,6 +111,45 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+	mux.HandleFunc("/api/v1/matching/who-liked-me/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		path := r.URL.Path // /api/v1/matching/who-liked-me/{user_id}
+		prefix := "/api/v1/matching/who-liked-me/"
+		if len(path) <= len(prefix) {
+			http.Error(w, "user_id required", http.StatusBadRequest)
+			return
+		}
+		userIDStr := path[len(prefix):]
+		var userID int64
+		if _, err := fmt.Sscanf(userIDStr, "%d", &userID); err != nil {
+			http.Error(w, "invalid user_id", http.StatusBadRequest)
+			return
+		}
+		page, pageSize := int32(1), int32(50)
+		ids, total, err := svc.GetWhoLikedMe(r.Context(), userID, page, pageSize)
+		if err != nil {
+			logrus.WithError(err).Error("get who liked me")
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if ids == nil {
+			ids = []int64{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		b := strings.Builder{}
+		b.WriteByte('[')
+		for i, id := range ids {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			fmt.Fprintf(&b, "%d", id)
+		}
+		b.WriteByte(']')
+		fmt.Fprintf(w, `{"user_ids":%s,"total":%d}`, b.String(), total)
 	})
 
 	gwmux := runtime.NewServeMux()

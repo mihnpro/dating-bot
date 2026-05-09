@@ -17,3 +17,7 @@ class EditProfile(StatesGroup):
 
 class UploadPhoto(StatesGroup):
     waiting_for_photo = State()
+
+
+class WhoLikedMe(StatesGroup):
+    browsing = State()

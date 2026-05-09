@@ -18,5 +18,6 @@ type InteractionRepository interface {
 	Create(ctx context.Context, interaction *entity.Interaction) error
 	GetByUserPair(ctx context.Context, fromUserID, toUserID int64) (*entity.Interaction, error)
 	GetByUserID(ctx context.Context, userID int64, page, pageSize int32, t *entity.InteractionType) ([]*entity.Interaction, int32, error)
+	GetWhoLikedMe(ctx context.Context, toUserID int64, page, pageSize int32) ([]int64, int32, error)
 	Delete(ctx context.Context, fromUserID, toUserID int64, t entity.InteractionType) error
 }
