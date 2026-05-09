@@ -1,10 +1,12 @@
+import asyncio
 import logging
 
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, InputMediaPhoto, Message
 
+from ...application.media_use_cases import MediaUseCases
 from ...application.user_use_cases import UserUseCases
 from ..keyboards.reply import (
     edit_field_keyboard,
@@ -34,6 +36,44 @@ async def _get_current_user(message: Message, user_use_cases: UserUseCases):
     )
 
 
+async def _get_all_photo_bytes(
+    user_id: int, media_use_cases: MediaUseCases
+) -> list[bytes]:
+    try:
+        photos = await media_use_cases.get_user_photos(user_id)
+        results = await asyncio.gather(
+            *(media_use_cases.get_photo_bytes(p.url) for p in photos),
+            return_exceptions=True,
+        )
+        return [r for r in results if isinstance(r, bytes) and r]
+    except Exception:
+        return []
+
+
+async def _send_profile_card(
+    message: Message,
+    text: str,
+    all_photo_bytes: list[bytes],
+    reply_markup=None,
+) -> None:
+    if len(all_photo_bytes) == 1:
+        await message.answer_photo(
+            photo=BufferedInputFile(all_photo_bytes[0], filename="photo.jpg"),
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=reply_markup,
+        )
+    elif len(all_photo_bytes) > 1:
+        media = [
+            InputMediaPhoto(media=BufferedInputFile(data, filename=f"photo_{i}.jpg"))
+            for i, data in enumerate(all_photo_bytes)
+        ]
+        await message.answer_media_group(media=media)
+        await message.answer(text, parse_mode="HTML", reply_markup=reply_markup)
+    else:
+        await message.answer(text, reply_markup=reply_markup)
+
+
 # =========================================================================== #
 # View profile                                                                  #
 # =========================================================================== #
@@ -44,6 +84,7 @@ async def _get_current_user(message: Message, user_use_cases: UserUseCases):
 async def view_profile_handler(
     message: Message,
     user_use_cases: UserUseCases,
+    media_use_cases: MediaUseCases,
 ) -> None:
     user = await _get_current_user(message, user_use_cases)
     profile = await user_use_cases.get_profile(user.id)
@@ -56,8 +97,11 @@ async def view_profile_handler(
         return
 
     card = profile.format_card(name=message.from_user.first_name)
-    await message.answer(
+    photo_bytes = await _get_all_photo_bytes(user.id, media_use_cases)
+    await _send_profile_card(
+        message,
         f"👤 <b>Your Profile</b>\n\n{card}\n\nUse /edit to update your profile.",
+        photo_bytes,
         reply_markup=main_menu_keyboard(),
     )
 
@@ -72,13 +116,17 @@ async def start_registration(
     message: Message,
     state: FSMContext,
     user_use_cases: UserUseCases,
+    media_use_cases: MediaUseCases,
 ) -> None:
     user = await _get_current_user(message, user_use_cases)
     existing = await user_use_cases.get_profile(user.id)
     if existing:
         card = existing.format_card(name=message.from_user.first_name)
-        await message.answer(
+        photo_bytes = await _get_all_photo_bytes(user.id, media_use_cases)
+        await _send_profile_card(
+            message,
             f"You already have a profile!\n\n{card}\n\nUse /edit to change it.",
+            photo_bytes,
             reply_markup=main_menu_keyboard(),
         )
         return
@@ -152,6 +200,7 @@ async def reg_interests_handler(
     message: Message,
     state: FSMContext,
     user_use_cases: UserUseCases,
+    media_use_cases: MediaUseCases,
 ) -> None:
     text = (message.text or "").strip()
     interests = [i.strip() for i in text.split(",") if i.strip()]
@@ -179,9 +228,13 @@ async def reg_interests_handler(
         return
 
     await state.clear()
+    user = await _get_current_user(message, user_use_cases)
     card = profile.format_card(name=message.from_user.first_name)
-    await message.answer(
+    photo_bytes = await _get_all_photo_bytes(user.id, media_use_cases)
+    await _send_profile_card(
+        message,
         f"✅ <b>Profile created successfully!</b>\n\n{card}",
+        photo_bytes,
         reply_markup=main_menu_keyboard(),
     )
 

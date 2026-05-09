@@ -12,6 +12,20 @@ def profile_action_keyboard(to_user_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def photos_keyboard(photos: list) -> InlineKeyboardMarkup:
+    """Inline keyboard for managing a user's photos. Each row: view + delete."""
+    builder = InlineKeyboardBuilder()
+    for idx, photo in enumerate(photos, start=1):
+        builder.row(
+            InlineKeyboardButton(text=f"📷 Photo {idx}", callback_data=f"photo_view:{photo.id}"),
+            InlineKeyboardButton(text="🗑 Delete", callback_data=f"photo_del:{photo.id}"),
+        )
+    builder.row(
+        InlineKeyboardButton(text="➕ Add photo", callback_data="photo_add")
+    )
+    return builder.as_markup()
+
+
 def matches_keyboard(matches: list[tuple[int, str]]) -> InlineKeyboardMarkup:
     """
     Build an inline keyboard listing all matches.
@@ -25,6 +39,42 @@ def matches_keyboard(matches: list[tuple[int, str]]) -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text=f"💬 {name}",
                 callback_data=f"match_info:{match_id}",
+            )
+        )
+    return builder.as_markup()
+
+
+def match_chat_keyboard(
+    match_id: int,
+    chat_url: str,
+    other_username: str | None = None,
+) -> InlineKeyboardMarkup:
+    """Buttons shown when a match is opened: internal chat + optional Telegram link."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🌐 Open Chat", url=chat_url)
+    )
+    if other_username:
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Write in Telegram",
+                url=f"https://t.me/{other_username}",
+            )
+        )
+    return builder.as_markup()
+
+
+def match_announcement_keyboard(chat_url: str, other_username: str | None = None) -> InlineKeyboardMarkup:
+    """Buttons shown immediately after a mutual match is detected."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🌐 Open Chat", url=chat_url)
+    )
+    if other_username:
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Write in Telegram",
+                url=f"https://t.me/{other_username}",
             )
         )
     return builder.as_markup()

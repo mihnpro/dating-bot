@@ -4,13 +4,17 @@ import logging
 from aiogram.types import BotCommand
 
 from .application.matching_use_cases import MatchingUseCases
+from .application.media_use_cases import MediaUseCases
 from .application.user_use_cases import UserUseCases
 from .bot import bot, dp
 from .config import settings
+from .infrastructure.chat_client import ChatClient
 from .infrastructure.matching_client import MatchingClient
+from .infrastructure.media_client import MediaClient
 from .infrastructure.recommendation_client import RecommendationClient
 from .infrastructure.user_profile_client import UserProfileClient
 from .presentation.routers import matching as matching_router
+from .presentation.routers import media as media_router
 from .presentation.routers import profile, start
 
 logging.basicConfig(
@@ -28,6 +32,7 @@ async def _set_bot_commands() -> None:
         BotCommand(command="edit", description="Edit your profile"),
         BotCommand(command="browse", description="Browse profiles"),
         BotCommand(command="matches", description="View your matches"),
+        BotCommand(command="photos", description="Manage your photos"),
         BotCommand(command="help", description="Show help"),
     ]
     await bot.set_my_commands(commands)
@@ -43,16 +48,21 @@ async def main() -> None:
     user_profile_client = UserProfileClient(settings.user_profile_service_url)
     matching_client = MatchingClient(settings.matching_service_url)
     recommendation_client = RecommendationClient(settings.recommendation_service_url)
+    media_client = MediaClient(settings.media_service_url, settings.minio_internal_url)
+    chat_client = ChatClient(settings.chat_service_url)
 
     await user_profile_client.start()
     await matching_client.start()
     await recommendation_client.start()
+    await media_client.start()
+    await chat_client.start()
 
     # ------------------------------------------------------------------ #
     # Application — use-case layer                                        #
     # ------------------------------------------------------------------ #
     user_use_cases = UserUseCases(user_profile_client)
     matching_use_cases = MatchingUseCases(matching_client, user_profile_client)
+    media_use_cases = MediaUseCases(media_client, bot)
 
     # ------------------------------------------------------------------ #
     # Dependency injection via dispatcher workflow data                   #
@@ -61,6 +71,9 @@ async def main() -> None:
     dp["user_use_cases"] = user_use_cases
     dp["matching_use_cases"] = matching_use_cases
     dp["recommendation_client"] = recommendation_client
+    dp["media_use_cases"] = media_use_cases
+    dp["chat_client"] = chat_client
+    dp["chat_frontend_url"] = settings.chat_frontend_url
 
     # ------------------------------------------------------------------ #
     # Routers                                                             #
@@ -68,6 +81,7 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(profile.router)
     dp.include_router(matching_router.router)
+    dp.include_router(media_router.router)
 
     # ------------------------------------------------------------------ #
     # Bot commands visible in Telegram UI                                 #
@@ -88,6 +102,8 @@ async def main() -> None:
         await user_profile_client.stop()
         await matching_client.stop()
         await recommendation_client.stop()
+        await media_client.stop()
+        await chat_client.stop()
         await bot.session.close()
         logger.info("Gateway Service stopped.")
 

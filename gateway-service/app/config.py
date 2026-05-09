@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     user_profile_service_url: str = "http://user-profile-service:8080"
     matching_service_url: str = "http://matching-service:8081"
     recommendation_service_url: str = "http://recommendation-service:8082"
+    media_service_url: str = "http://media-service:8083"
+    minio_internal_url: str = "http://minio:9000"
+    chat_service_url: str = "http://chat-service:8083"
+    chat_frontend_url: str = "http://localhost:3001"
     service_name: str = "gateway-service"
 
 
