@@ -1,0 +1,134 @@
+{
+  "uid": "dating-chat",
+  "title": "Dating Bot — Chat Service",
+  "tags": ["dating-bot", "chat"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Active WebSocket Connections",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "chat_websocket_active_connections", "legendFormat": "connections", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 100 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 2,
+      "title": "Total Messages Sent",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        { "expr": "sum(chat_messages_total)", "legendFormat": "total", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 3,
+      "title": "Total Conversations",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "chat_conversations_created_total", "legendFormat": "total", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" }
+    },
+    {
+      "id": 4,
+      "title": "Service Status",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        { "expr": "up{job=\"chat-service\"}", "legendFormat": "status", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+    },
+    {
+      "id": 5,
+      "title": "Message Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "sum(rate(chat_messages_total[1m]))", "legendFormat": "messages/s", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 15 } } }
+    },
+    {
+      "id": 6,
+      "title": "Active WebSocket Connections Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "chat_websocket_active_connections", "legendFormat": "connections", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 15 } } }
+    },
+    {
+      "id": 7,
+      "title": "HTTP Request Rate by Path",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum by (method, path) (rate(http_requests_total{service=\"chat-service\"}[1m]))",
+          "legendFormat": "{{method}} {{path}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 8,
+      "title": "HTTP Latency p50 / p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"chat-service\"}[1m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{service=\"chat-service\"}[1m])))", "legendFormat": "p95", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 9,
+      "title": "Go Runtime",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "go_goroutines{service=\"chat-service\"}", "legendFormat": "goroutines", "refId": "A" },
+        { "expr": "go_memstats_heap_alloc_bytes{service=\"chat-service\"} / 1024 / 1024", "legendFormat": "heap MB", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 10,
+      "title": "Logs",
+      "type": "logs",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        { "expr": "{service=\"chat-service\"}", "refId": "A", "datasource": { "type": "loki", "uid": "loki" } }
+      ],
+      "options": { "showTime": true, "showLabels": true, "wrapLogMessage": true, "sortOrder": "Descending" }
+    }
+  ]
+}
