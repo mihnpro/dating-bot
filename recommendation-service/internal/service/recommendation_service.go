@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
@@ -17,6 +19,23 @@ import (
 	"github.com/dating-bot/recommendation-service/internal/domain/repository"
 	"github.com/dating-bot/recommendation-service/internal/service/ranking"
 	"github.com/dating-bot/recommendation-service/internal/service/worker"
+)
+
+var (
+	svcCacheHits = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dating_recommendation_cache_hits_total",
+		Help: "Total number of Redis cache hits when fetching the next recommendation.",
+	})
+
+	svcCacheMisses = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dating_recommendation_cache_misses_total",
+		Help: "Total number of Redis cache misses (queue refilled from DB).",
+	})
+
+	svcRatingRecalcs = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dating_recommendation_rating_recalculations_total",
+		Help: "Total number of rating recalculations by type (primary/behavioral/full/global).",
+	}, []string{"type"})
 )
 
 // RecommendationService is the application-layer orchestrator.
@@ -106,6 +125,7 @@ func (s *RecommendationService) GetNextProfile(
 	}
 
 	if !ok {
+		svcCacheMisses.Inc()
 		// Step 3: refill the queue and pop the first entry.
 		candidateID, ok, err = s.refillAndPop(ctx, viewerUserID, targetGender)
 		if err != nil {
@@ -114,6 +134,8 @@ func (s *RecommendationService) GetNextProfile(
 		if !ok {
 			return nil, false, nil // no candidates available
 		}
+	} else {
+		svcCacheHits.Inc()
 	}
 
 	// Step 4: fetch profile metadata for the candidate.
@@ -339,6 +361,7 @@ func (s *RecommendationService) recalcPrimary(ctx context.Context, userID int64)
 	}
 
 	_ = s.ratingRepo.LogChange(ctx, userID, oldCombined, rating.CombinedRating, "primary recalc")
+	svcRatingRecalcs.WithLabelValues("primary").Inc()
 	s.publishRecalculated(ctx, rating)
 	return nil
 }
@@ -369,6 +392,7 @@ func (s *RecommendationService) recalcBehavioral(ctx context.Context, userID int
 	}
 
 	_ = s.ratingRepo.LogChange(ctx, userID, oldCombined, rating.CombinedRating, "behavioral recalc")
+	svcRatingRecalcs.WithLabelValues("behavioral").Inc()
 	s.publishRecalculated(ctx, rating)
 	return nil
 }
@@ -425,6 +449,7 @@ func (s *RecommendationService) recalcFull(ctx context.Context, userID int64) er
 	}
 
 	_ = s.ratingRepo.LogChange(ctx, userID, oldCombined, rating.CombinedRating, "full recalc")
+	svcRatingRecalcs.WithLabelValues("full").Inc()
 	s.publishRecalculated(ctx, rating)
 	return nil
 }
@@ -440,6 +465,7 @@ func (s *RecommendationService) globalRecalc(ctx context.Context) error {
 		return fmt.Errorf("global recalc fetch all: %w", err)
 	}
 
+	svcRatingRecalcs.WithLabelValues("global").Inc()
 	logrus.WithField("user_count", len(ratings)).Info("global recalculation started")
 
 	// Use at most GOMAXPROCS workers for the fan-out goroutines — they're just

@@ -12,6 +12,7 @@ import (
 
 	"github.com/dating-bot/user-profile-service/internal/domain/entity"
 	"github.com/dating-bot/user-profile-service/internal/service"
+	"github.com/dating-bot/user-profile-service/internal/transport/metrics"
 	userprofilev1 "github.com/mihnpro/DatingBotProtos/gen/go/user-profile/v1"
 )
 
@@ -38,6 +39,7 @@ func (s *Server) RegisterUser(ctx context.Context, req *userprofilev1.RegisterUs
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "register user: %v", err)
 	}
+	metrics.UsersRegisteredTotal.Inc()
 	return &userprofilev1.RegisterUserResponse{User: toUserProto(user)}, nil
 }
 
@@ -139,6 +141,8 @@ func (s *Server) CreateProfile(ctx context.Context, req *userprofilev1.CreatePro
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create profile: %v", err)
 	}
+	metrics.ProfilesCreatedTotal.Inc()
+	metrics.ProfileFullness.Observe(profile.FullnessPercent)
 	return &userprofilev1.CreateProfileResponse{Profile: toProfileProto(profile)}, nil
 }
 
@@ -175,6 +179,8 @@ func (s *Server) UpdateProfile(ctx context.Context, req *userprofilev1.UpdatePro
 		}
 		return nil, status.Errorf(codes.Internal, "update profile: %v", err)
 	}
+	metrics.ProfilesUpdatedTotal.Inc()
+	metrics.ProfileFullness.Observe(profile.FullnessPercent)
 	return &userprofilev1.UpdateProfileResponse{Profile: toProfileProto(profile)}, nil
 }
 

@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
 
+// gRPC infrastructure metrics — collected via UnaryServerInterceptor.
 var (
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -38,6 +40,21 @@ var (
 func init() {
 	prometheus.MustRegister(requestDuration, requestTotal, inFlightRequests)
 }
+
+// Business metrics — domain events counted at the transport layer.
+var (
+	// InteractionsTotal tracks likes and passes.
+	InteractionsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dating_interactions_total",
+		Help: "Total number of user interactions (like/pass).",
+	}, []string{"type"})
+
+	// MatchesCreatedTotal counts mutual matches.
+	MatchesCreatedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dating_matches_created_total",
+		Help: "Total number of mutual matches created.",
+	})
+)
 
 // UnaryServerInterceptor returns a gRPC UnaryServerInterceptor that collects Prometheus metrics.
 func UnaryServerInterceptor() grpc.UnaryServerInterceptor {

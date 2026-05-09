@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// gRPC infrastructure metrics — collected via UnaryServerInterceptor.
 var (
 	requestDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
