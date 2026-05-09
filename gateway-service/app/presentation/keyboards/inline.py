@@ -42,3 +42,39 @@ def matches_keyboard(matches: list[tuple[int, str]]) -> InlineKeyboardMarkup:
             )
         )
     return builder.as_markup()
+
+
+def match_chat_keyboard(
+    match_id: int,
+    chat_url: str,
+    other_username: str | None = None,
+) -> InlineKeyboardMarkup:
+    """Buttons shown when a match is opened: internal chat + optional Telegram link."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🌐 Open Chat", url=chat_url)
+    )
+    if other_username:
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Write in Telegram",
+                url=f"https://t.me/{other_username}",
+            )
+        )
+    return builder.as_markup()
+
+
+def match_announcement_keyboard(chat_url: str, other_username: str | None = None) -> InlineKeyboardMarkup:
+    """Buttons shown immediately after a mutual match is detected."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🌐 Open Chat", url=chat_url)
+    )
+    if other_username:
+        builder.row(
+            InlineKeyboardButton(
+                text="💬 Write in Telegram",
+                url=f"https://t.me/{other_username}",
+            )
+        )
+    return builder.as_markup()

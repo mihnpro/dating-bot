@@ -1,0 +1,27 @@
+service:
+  name: chat-service
+
+grpc:
+  port: 50054
+
+http:
+  port: 8083
+
+postgres:
+  host: chat-postgres
+  port: 5432
+  user: postgres
+  password: postgres
+  dbname: chat_db
+  sslmode: disable
+
+rabbitmq:
+  url: amqp://guest:guest@rabbitmq:5672/
+
+clients:
+  user_profile_service_addr: user-profile-service:50051
+
+chat:
+  secret_key: change-me-in-production
+  token_ttl_sec: 3600
+  frontend_url: http://localhost:3001
