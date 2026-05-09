@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from aiogram.types import BotCommand
+from aiohttp import web
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from .application.matching_use_cases import MatchingUseCases
 from .application.media_use_cases import MediaUseCases
@@ -13,6 +15,7 @@ from .infrastructure.matching_client import MatchingClient
 from .infrastructure.media_client import MediaClient
 from .infrastructure.recommendation_client import RecommendationClient
 from .infrastructure.user_profile_client import UserProfileClient
+from .presentation.middleware.metrics import MetricsMiddleware
 from .presentation.routers import matching as matching_router
 from .presentation.routers import media as media_router
 from .presentation.routers import profile, start
@@ -22,6 +25,27 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+_METRICS_PORT = 8085
+
+
+async def _metrics_handler(request: web.Request) -> web.Response:
+    """Serve Prometheus metrics in text exposition format."""
+    body = generate_latest()
+    return web.Response(body=body, headers={"Content-Type": CONTENT_TYPE_LATEST})
+
+
+async def _start_metrics_server() -> web.AppRunner:
+    """Start a lightweight aiohttp server on _METRICS_PORT serving /metrics."""
+    app = web.Application()
+    app.router.add_get("/metrics", _metrics_handler)
+    app.router.add_get("/health", lambda _: web.Response(text="ok"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", _METRICS_PORT)
+    await site.start()
+    logger.info("Prometheus metrics server listening on :%d/metrics", _METRICS_PORT)
+    return runner
 
 
 async def _set_bot_commands() -> None:
@@ -41,6 +65,11 @@ async def _set_bot_commands() -> None:
 
 async def main() -> None:
     logger.info("Starting Gateway Service (%s)", settings.service_name)
+
+    # ------------------------------------------------------------------ #
+    # Metrics HTTP server (runs alongside the bot)                        #
+    # ------------------------------------------------------------------ #
+    metrics_runner = await _start_metrics_server()
 
     # ------------------------------------------------------------------ #
     # Infrastructure — HTTP clients for Go microservices                  #
@@ -76,6 +105,11 @@ async def main() -> None:
     dp["chat_frontend_url"] = settings.chat_frontend_url
 
     # ------------------------------------------------------------------ #
+    # Middleware (outer — applied to every Update before routing)         #
+    # ------------------------------------------------------------------ #
+    dp.update.outer_middleware(MetricsMiddleware())
+
+    # ------------------------------------------------------------------ #
     # Routers                                                             #
     # ------------------------------------------------------------------ #
     dp.include_router(start.router)
@@ -99,6 +133,7 @@ async def main() -> None:
         )
     finally:
         logger.info("Shutting down Gateway Service...")
+        await metrics_runner.cleanup()
         await user_profile_client.stop()
         await matching_client.stop()
         await recommendation_client.stop()
