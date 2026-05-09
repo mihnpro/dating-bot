@@ -14,6 +14,9 @@ def main_menu_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text="📷 My Photos"),
                 KeyboardButton(text="💞 My Matches"),
             ],
+            [
+                KeyboardButton(text="❤️ Who Liked Me"),
+            ],
         ],
         resize_keyboard=True,
         input_field_placeholder="Choose action...",

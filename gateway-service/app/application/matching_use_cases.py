@@ -65,6 +65,19 @@ class MatchingUseCases:
 
         return result
 
+    async def get_who_liked_me(self, user_id: int) -> list[tuple]:
+        """Return (user_id, User|None) pairs for users who liked me and I haven't responded to."""
+        data = await self._matching.get_who_liked_me(user_id)
+        ids: list[int] = data.get("user_ids") or []
+
+        result = []
+        for other_id in ids:
+            user_data = await self._user_profile.get_user(other_id)
+            from ..domain.user import User
+            other_user = User.from_dict(user_data) if user_data else None
+            result.append((other_id, other_user))
+        return result
+
     async def undo_like(self, from_user_id: int, to_user_id: int) -> None:
         """Remove a previously sent like (user changed their mind)."""
         await self._matching.undo_like(from_user_id, to_user_id)

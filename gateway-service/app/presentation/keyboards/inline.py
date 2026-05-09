@@ -44,16 +44,28 @@ def matches_keyboard(matches: list[tuple[int, str]]) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+def who_liked_me_action_keyboard(from_user_id: int) -> InlineKeyboardMarkup:
+    """Like / Dislike / Cancel buttons shown under a 'who liked me' profile."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="❤️ Like", callback_data=f"wlm_like:{from_user_id}"),
+        InlineKeyboardButton(text="👎 Dislike", callback_data=f"wlm_dislike:{from_user_id}"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="❌ Cancel", callback_data="wlm_cancel"),
+    )
+    return builder.as_markup()
+
+
 def match_chat_keyboard(
     match_id: int,
-    chat_url: str,
+    chat_url: str | None = None,
     other_username: str | None = None,
-) -> InlineKeyboardMarkup:
+) -> InlineKeyboardMarkup | None:
     """Buttons shown when a match is opened: internal chat + optional Telegram link."""
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="🌐 Open Chat", url=chat_url)
-    )
+    if chat_url:
+        builder.row(InlineKeyboardButton(text="🌐 Open Chat", url=chat_url))
     if other_username:
         builder.row(
             InlineKeyboardButton(
@@ -61,15 +73,17 @@ def match_chat_keyboard(
                 url=f"https://t.me/{other_username}",
             )
         )
-    return builder.as_markup()
+    return builder.as_markup() if chat_url or other_username else None
 
 
-def match_announcement_keyboard(chat_url: str, other_username: str | None = None) -> InlineKeyboardMarkup:
+def match_announcement_keyboard(
+    chat_url: str | None = None,
+    other_username: str | None = None,
+) -> InlineKeyboardMarkup | None:
     """Buttons shown immediately after a mutual match is detected."""
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="🌐 Open Chat", url=chat_url)
-    )
+    if chat_url:
+        builder.row(InlineKeyboardButton(text="🌐 Open Chat", url=chat_url))
     if other_username:
         builder.row(
             InlineKeyboardButton(
@@ -77,4 +91,4 @@ def match_announcement_keyboard(chat_url: str, other_username: str | None = None
                 url=f"https://t.me/{other_username}",
             )
         )
-    return builder.as_markup()
+    return builder.as_markup() if chat_url or other_username else None

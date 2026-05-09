@@ -17,8 +17,10 @@ from ..keyboards.inline import (
     match_chat_keyboard,
     matches_keyboard,
     profile_action_keyboard,
+    who_liked_me_action_keyboard,
 )
 from ..keyboards.reply import main_menu_keyboard
+from ..states.registration import WhoLikedMe
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +32,17 @@ async def _build_chat_url(
     frontend_url: str,
     user_id: int,
     match_id: int,
+    other_user_id: int | None = None,
 ) -> str | None:
-    """Generate a signed chat URL for the given user and match. Returns None on error."""
+    """Create or fetch conversation, then return a signed chat URL. Returns None on error."""
     try:
+        if other_user_id is not None:
+            await chat_client.get_or_create_conversation(match_id, user_id, other_user_id)
         data = await chat_client.get_token(user_id)
         token = data.get("token", "")
         return f"{frontend_url}/?user_id={user_id}&match_id={match_id}&token={token}"
     except Exception as exc:
-        logger.warning("Failed to generate chat token for user=%s: %s", user_id, exc)
+        logger.warning("Failed to build chat url for user=%s: %s", user_id, exc)
         return None
 
 
@@ -242,14 +247,14 @@ async def like_callback(
         other_name = other_user.first_name if other_user else "someone"
         other_username = other_user.username if other_user else None
 
-        chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match.id)
+        chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match.id, to_user_id)
 
         await callback.message.answer(
             f"🎉 <b>It's a Match!</b>\n\n"
             f"You and <b>{other_name}</b> liked each other!\n\n"
             f"Start a conversation right now 👇",
             parse_mode="HTML",
-            reply_markup=match_announcement_keyboard(chat_url, other_username) if chat_url else None,
+            reply_markup=match_announcement_keyboard(chat_url, other_username),
         )
     else:
         await callback.message.answer("❤️ Liked!")
@@ -398,8 +403,8 @@ async def match_info_callback(
     other_profile = await user_use_cases.get_profile(other_id)
     other_username = other_user.username if other_user else None
 
-    chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match_id)
-    keyboard = match_chat_keyboard(match_id, chat_url, other_username) if chat_url else None
+    chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match_id, other_id)
+    keyboard = match_chat_keyboard(match_id, chat_url, other_username)
 
     if other_user and other_profile:
         card = other_profile.format_card(name=other_user.first_name)
@@ -415,3 +420,154 @@ async def match_info_callback(
             f"💞 Match #{match_id}",
             reply_markup=keyboard,
         )
+
+
+# =========================================================================== #
+# Who Liked Me                                                                  #
+# =========================================================================== #
+
+async def _show_next_who_liked_me(
+    message: Message,
+    state: FSMContext,
+    user_use_cases: UserUseCases,
+    media_use_cases: MediaUseCases,
+) -> None:
+    data = await state.get_data()
+    queue: list[int] = data.get("wlm_queue", [])
+
+    if not queue:
+        await state.clear()
+        await message.answer(
+            "✅ You've reviewed everyone who liked you!",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    candidate_id = queue[0]
+    await state.update_data(wlm_queue=queue[1:])
+
+    other_user = await user_use_cases.get_user(candidate_id)
+    name = other_user.first_name if other_user else f"User #{candidate_id}"
+    other_profile = await user_use_cases.get_profile(candidate_id)
+
+    if other_profile:
+        card = other_profile.format_card(name=name)
+    else:
+        card = f"👤 <b>{name}</b>"
+
+    photo_bytes = await _get_all_photo_bytes(candidate_id, media_use_cases)
+    remaining = len(queue) - 1
+    header = f"❤️ <b>Liked you</b>  ({remaining} more)\n\n"
+    await _send_card_with_photo(
+        message,
+        header + card,
+        photo_bytes,
+        reply_markup=who_liked_me_action_keyboard(candidate_id),
+    )
+
+
+@router.message(F.text == "❤️ Who Liked Me")
+async def who_liked_me_handler(
+    message: Message,
+    state: FSMContext,
+    user_use_cases: UserUseCases,
+    matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
+) -> None:
+    user = await _get_current_user(message, user_use_cases)
+
+    try:
+        liked_list = await matching_use_cases.get_who_liked_me(user.id)
+    except Exception as exc:
+        logger.error("get_who_liked_me failed user=%s: %s", user.id, exc)
+        await message.answer("❌ Could not load the list. Please try again.")
+        return
+
+    if not liked_list:
+        await message.answer(
+            "😔 Nobody has liked you yet — keep your profile up to date!",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    queue = [uid for uid, _ in liked_list]
+    await state.set_state(WhoLikedMe.browsing)
+    await state.update_data(wlm_queue=queue)
+
+    await message.answer(
+        f"❤️ <b>{len(queue)} people liked you!</b>\n\nSwipe through their profiles:",
+        parse_mode="HTML",
+    )
+    await _show_next_who_liked_me(message, state, user_use_cases, media_use_cases)
+
+
+@router.callback_query(WhoLikedMe.browsing, F.data.startswith("wlm_like:"))
+async def wlm_like_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user_use_cases: UserUseCases,
+    matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
+    chat_client: ChatClient,
+    chat_frontend_url: str,
+) -> None:
+    await callback.answer()
+    to_user_id = int(callback.data.split(":")[1])
+    user = await _get_current_user(callback.message, user_use_cases)
+
+    try:
+        is_match, match = await matching_use_cases.like_profile(
+            from_user_id=user.id, to_user_id=to_user_id
+        )
+    except Exception as exc:
+        logger.error("wlm_like failed user=%s target=%s: %s", user.id, to_user_id, exc)
+        await callback.message.answer("❌ Something went wrong. Please try again.")
+        return
+
+    if is_match and match:
+        other_user = await user_use_cases.get_user(to_user_id)
+        other_name = other_user.first_name if other_user else "someone"
+        other_username = other_user.username if other_user else None
+        chat_url = await _build_chat_url(chat_client, chat_frontend_url, user.id, match.id, to_user_id)
+        await callback.message.answer(
+            f"🎉 <b>It's a Match!</b>\n\nYou and <b>{other_name}</b> liked each other!",
+            parse_mode="HTML",
+            reply_markup=match_announcement_keyboard(chat_url, other_username),
+        )
+    else:
+        await callback.message.answer("❤️ Liked!")
+
+    await _show_next_who_liked_me(callback.message, state, user_use_cases, media_use_cases)
+
+
+@router.callback_query(WhoLikedMe.browsing, F.data.startswith("wlm_dislike:"))
+async def wlm_dislike_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    user_use_cases: UserUseCases,
+    matching_use_cases: MatchingUseCases,
+    media_use_cases: MediaUseCases,
+) -> None:
+    await callback.answer()
+    to_user_id = int(callback.data.split(":")[1])
+    user = await _get_current_user(callback.message, user_use_cases)
+
+    try:
+        await matching_use_cases.pass_profile(from_user_id=user.id, to_user_id=to_user_id)
+    except Exception as exc:
+        logger.error("wlm_dislike failed user=%s target=%s: %s", user.id, to_user_id, exc)
+
+    await _show_next_who_liked_me(callback.message, state, user_use_cases, media_use_cases)
+
+
+@router.callback_query(WhoLikedMe.browsing, F.data == "wlm_cancel")
+async def wlm_cancel_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    await callback.answer()
+    await state.clear()
+    await callback.message.answer(
+        "↩️ Cancelled. Back to main menu.",
+        reply_markup=main_menu_keyboard(),
+    )
