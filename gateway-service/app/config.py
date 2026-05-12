@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     chat_service_url: str = "http://chat-service:8083"
     chat_frontend_url: str = "http://localhost:3001"
     service_name: str = "gateway-service"
+    internal_http_port: int = 8086
 
 
 settings = Settings()

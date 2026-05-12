@@ -1,6 +1,7 @@
 import asyncio
 import logging
 
+from aiohttp import web as aiohttp_web
 from aiogram.types import BotCommand
 from aiohttp import web
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -19,6 +20,7 @@ from .presentation.middleware.metrics import MetricsMiddleware
 from .presentation.routers import matching as matching_router
 from .presentation.routers import media as media_router
 from .presentation.routers import profile, start
+from .presentation.routers.notify import create_internal_app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -123,7 +125,19 @@ async def main() -> None:
     await _set_bot_commands()
 
     # ------------------------------------------------------------------ #
-    # Start polling                                                       #
+    # Internal HTTP server for notification-service delivery              #
+    # Listens on INTERNAL_HTTP_PORT (default 8086).                       #
+    # POST /internal/notify → bot.send_message(telegram_id, text)        #
+    # ------------------------------------------------------------------ #
+    internal_app = create_internal_app(bot)
+    runner = aiohttp_web.AppRunner(internal_app)
+    await runner.setup()
+    site = aiohttp_web.TCPSite(runner, host="0.0.0.0", port=settings.internal_http_port)
+    await site.start()
+    logger.info("Internal HTTP server started on port %d", settings.internal_http_port)
+
+    # ------------------------------------------------------------------ #
+    # Start polling alongside the internal HTTP server                    #
     # ------------------------------------------------------------------ #
     try:
         logger.info("Bot is polling for updates...")
@@ -134,6 +148,7 @@ async def main() -> None:
     finally:
         logger.info("Shutting down Gateway Service...")
         await metrics_runner.cleanup()
+        await runner.cleanup()
         await user_profile_client.stop()
         await matching_client.stop()
         await recommendation_client.stop()
