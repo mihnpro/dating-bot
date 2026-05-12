@@ -1,0 +1,56 @@
+services:
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8087:8087"
+    environment:
+      POSTGRES_HOST: notification-postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: notification_db
+      POSTGRES_SSLMODE: disable
+      RABBITMQ_URL: amqp://guest:guest@dating-bot-rabbitmq:5672/
+      RABBITMQ_EXCHANGE: dating.events
+      HTTP_PORT: 8087
+      SERVICE_NAME: notification-service
+      USER_PROFILE_SERVICE_ADDR: user-profile-service:50051
+      CHAT_SERVICE_URL: http://chat-service:8083
+      GATEWAY_SERVICE_URL: http://gateway-service:8086
+    depends_on:
+      notification-postgres:
+        condition: service_healthy
+    networks:
+      - dating-bot-net
+    restart: unless-stopped
+
+  notification-postgres:
+    image: postgres:16-alpine
+    container_name: notification-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: notification_db
+    ports:
+      - "5438:5432"
+    volumes:
+      - notification-pg-data:/var/lib/postgresql/data
+      - ./deploy/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dating-bot-net
+
+volumes:
+  notification-pg-data:
+
+networks:
+  dating-bot-net:
+    external: true
+    name: dating-bot-net
