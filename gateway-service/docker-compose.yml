@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: gateway-service
     ports:
+      - "8085:8085"
       - "8086:8086"
     env_file:
       - .env

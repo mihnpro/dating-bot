@@ -6,7 +6,26 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
+)
+
+var (
+	poolJobsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "dating_recommendation_worker_jobs_processed_total",
+		Help: "Total number of worker pool jobs processed by job type.",
+	}, []string{"job_type"})
+
+	poolJobsDropped = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "dating_recommendation_worker_jobs_dropped_total",
+		Help: "Total number of worker pool jobs dropped due to full queue or dedup.",
+	})
+
+	poolQueueLength = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "dating_recommendation_worker_queue_length",
+		Help: "Current number of jobs waiting in the worker pool queue.",
+	})
 )
 
 // JobType identifies what kind of recalculation a Job requests.
@@ -30,6 +49,22 @@ const (
 	JobGlobalRecalc
 )
 
+// String returns a human-readable label used in Prometheus metric labels.
+func (t JobType) String() string {
+	switch t {
+	case JobPrimaryRecalc:
+		return "primary"
+	case JobBehavioralRecalc:
+		return "behavioral"
+	case JobFullRecalc:
+		return "full"
+	case JobGlobalRecalc:
+		return "global"
+	default:
+		return "unknown"
+	}
+}
+
 // Job is a unit of work placed on the pool's queue.
 type Job struct {
 	Type   JobType
@@ -41,7 +76,6 @@ type Job struct {
 type Handler func(ctx context.Context, job Job)
 
 // Pool is a bounded goroutine pool that drains a buffered Job channel.
-//
 // Design decisions:
 //   - Fixed worker count prevents unbounded goroutine growth under load.
 //   - Buffered channel decouples producers (event handlers / RPC) from workers.
@@ -137,6 +171,7 @@ func (p *Pool) Enqueue(job Job) bool {
 
 	select {
 	case p.jobs <- job:
+		poolQueueLength.Inc()
 		return true
 	default:
 		// Queue full — remove the in-flight marker we just set.
@@ -144,6 +179,7 @@ func (p *Pool) Enqueue(job Job) bool {
 			p.inflight.Delete(key)
 		}
 		p.dropped.Add(1)
+		poolJobsDropped.Inc()
 		logrus.WithField("job_type", job.Type).
 			WithField("user_id", job.UserID).
 			Warn("worker pool queue full — job dropped")
@@ -163,6 +199,7 @@ func (p *Pool) EnqueueWait(ctx context.Context, job Job) error {
 
 	select {
 	case p.jobs <- job:
+		poolQueueLength.Inc()
 		return nil
 	case <-ctx.Done():
 		if key != "" {
@@ -236,11 +273,13 @@ func (p *Pool) execute(ctx context.Context, job Job) {
 		}
 	}()
 
+	poolQueueLength.Dec()
 	start := time.Now()
 	h(ctx, job)
 	elapsed := time.Since(start)
 
 	p.processed.Add(1)
+	poolJobsProcessed.WithLabelValues(job.Type.String()).Inc()
 	logrus.WithField("job_type", job.Type).
 		WithField("user_id", job.UserID).
 		WithField("elapsed_ms", elapsed.Milliseconds()).

@@ -15,6 +15,7 @@ import (
 
 	"github.com/dating-bot/matching-service/internal/domain/entity"
 	"github.com/dating-bot/matching-service/internal/service"
+	"github.com/dating-bot/matching-service/internal/transport/metrics"
 )
 
 type Server struct {
@@ -30,6 +31,11 @@ func (s *Server) Like(ctx context.Context, req *matchingv1.LikeRequest) (*matchi
 	interaction, isMatch, match, err := s.svc.Like(ctx, req.FromUserId, req.ToUserId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "like: %v", err)
+	}
+
+	metrics.InteractionsTotal.WithLabelValues("like").Inc()
+	if isMatch {
+		metrics.MatchesCreatedTotal.Inc()
 	}
 
 	resp := &matchingv1.LikeResponse{
@@ -48,6 +54,7 @@ func (s *Server) Pass(ctx context.Context, req *matchingv1.PassRequest) (*matchi
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "pass: %v", err)
 	}
+	metrics.InteractionsTotal.WithLabelValues("pass").Inc()
 	return &matchingv1.PassResponse{Interaction: toInteractionProto(interaction)}, nil
 }
 

@@ -1,8 +1,11 @@
 global:
-  scrape_interval: 10s
-  evaluation_interval: 10s
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: local
 
 scrape_configs:
+  # ── Go business services ───────────────────────────────────────────────────
   - job_name: user-profile-service
     metrics_path: /metrics
     static_configs:
@@ -73,3 +76,5 @@ scrape_configs:
     static_configs:
       - targets:
           - localhost:9090
+        labels:
+          service: prometheus
