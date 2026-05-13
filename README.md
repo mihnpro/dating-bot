@@ -85,7 +85,7 @@ graph TD
     end
 
     subgraph "Monitoring"
-        X[Prometheus] -->|Metrics|
+        X[Prometheus]
         Z[ELK Stack] -->|Logs| AA[Kibana]
     end
 
